@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>誕生日抽選</title>
+<style>
+*{box-sizing:border-box}
+:root{--mincho:"Hiragino Mincho ProN","Yu Mincho","MS PMincho",serif;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+body{margin:0;background:#000;color:#e8e8e8;font-family:var(--mincho);height:100vh;overflow:hidden}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:5;background:repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 3px)}
+#app{display:flex;height:100vh}
+#side{width:300px;padding:18px;background:#070707;border-right:1px solid #222;overflow-y:auto;flex-shrink:0}
+#side h2{margin:0 0 12px;padding-bottom:8px;font-size:15px;letter-spacing:.4em;font-weight:700;border-bottom:1px solid #d4141c}
+.hint{font-size:11px;color:#777;margin:0 0 12px;line-height:1.7}
+.row{display:flex;gap:4px;margin-bottom:6px;align-items:center}
+.row input[type=text]{flex:1;min-width:0}
+.row input[type=number]{width:54px}
+.row input{padding:6px;border:1px solid #333;background:#000;color:#e8e8e8;font:13px var(--mono);border-radius:0}
+.row input:focus{outline:none;border-color:#d4141c}
+.pct{width:38px;font:11px var(--mono);color:#d4141c;text-align:right}
+button{cursor:pointer;border-radius:0}
+.x{background:#000;border:1px solid #3a2222;color:#d4141c;width:26px;height:28px}
+.sub{background:#000;border:1px solid #444;color:#bbb;padding:7px 10px;margin:4px 4px 0 0;font:12px var(--mincho)}
+.sub:hover{border-color:#d4141c;color:#fff}
+#stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;min-width:0;padding:0 24px}
+#head{text-align:center}
+#head .sm{font:11px var(--mono);letter-spacing:.6em;color:#d4141c}
+#head h1{margin:8px 0;font-size:clamp(26px,3.6vw,52px);letter-spacing:.4em;font-weight:900}
+#stat{font:13px var(--mono);letter-spacing:.4em;color:#888}
+#strip{position:relative;width:min(1100px,100%);height:240px;overflow:hidden;background:#000;border:1px solid #333}
+#strip::before,#strip::after{content:"";position:absolute;top:0;bottom:0;width:18%;z-index:2;pointer-events:none}
+#strip::before{left:0;background:linear-gradient(90deg,#000,transparent)}
+#strip::after{right:0;background:linear-gradient(270deg,#000,transparent)}
+#track{position:absolute;left:0;top:0;bottom:0;display:flex;align-items:center;will-change:transform}
+#mk{position:absolute;left:50%;top:0;bottom:0;width:2px;margin-left:-1px;background:#d4141c;box-shadow:0 0 10px #d4141c;z-index:3}
+#mk::before,#mk::after{content:"";position:absolute;left:-8px;border:9px solid transparent}
+#mk::before{top:0;border-top-color:#d4141c}
+#mk::after{bottom:0;border-bottom-color:#d4141c}
+.card{flex:0 0 170px;margin:0 5px;height:200px;background:#0b0b0b;border:1px solid #2a2a2a;border-bottom:4px solid var(--c);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:filter .15s,border-color .15s}
+.card .rar{font:11px var(--mono);letter-spacing:.3em;color:var(--c)}
+.card .nm{font-size:22px;font-weight:900;letter-spacing:.08em;text-align:center;padding:0 8px;word-break:break-all;max-height:3.6em;overflow:hidden}
+.card.hit{border-color:#e8e8e8;filter:brightness(1.5)}
+.t0{--c:#4a6fa5}.t1{--c:#7a5fb5}.t2{--c:#b4408c}.t3{--c:#d4141c}.t4{--c:#ffb000}
+#spin{font:22px var(--mincho);letter-spacing:.6em;padding:14px 56px 14px 64px;background:#000;color:#d4141c;border:1px solid #d4141c}
+#spin:hover:not(:disabled){background:#d4141c;color:#000}
+#spin:disabled{color:#555;border-color:#333;cursor:default}
+#dim{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;transition:opacity .6s;background:radial-gradient(circle at var(--px,50%) var(--py,50%),transparent 0,transparent 16vmin,rgba(0,0,0,.88) 50vmin)}
+#dim.on{opacity:1}
+#flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:40}
+#flash.on{animation:fl .5s}
+@keyframes fl{0%{opacity:.9}100%{opacity:0}}
+#win{position:fixed;inset:0;z-index:45;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.94);cursor:pointer;text-align:center;font-family:var(--mincho)}
+#win.show{display:flex}
+#win.alert{animation:al .5s 2}
+@keyframes al{50%{background:rgba(90,0,0,.96)}}
+#win::before,#win::after{content:"";position:absolute;left:8%;right:8%;height:1px;background:var(--c);opacity:.8}
+#win::before{top:22%}
+#win::after{bottom:22%}
+.wl{font:13px var(--mono);letter-spacing:.8em;color:#d4141c;animation:ln .4s}
+#wn{margin:18px 0;font-size:clamp(48px,10vw,150px);font-weight:900;letter-spacing:.1em;color:#fff;animation:glitch .5s}
+#wt{font-size:clamp(18px,2.6vw,36px);letter-spacing:.7em;color:var(--c);animation:ln .8s}
+#win small{position:absolute;bottom:6%;color:#555;font:12px var(--mono);letter-spacing:.3em}
+@keyframes glitch{
+  0%{opacity:0;transform:translateX(-40px);text-shadow:-8px 0 #d4141c,8px 0 #0cf}
+  20%{opacity:1;transform:translateX(20px);text-shadow:6px 0 #d4141c,-6px 0 #0cf}
+  40%{transform:translateX(-10px);text-shadow:-4px 0 #d4141c,4px 0 #0cf}
+  60%{transform:translateX(6px)}
+  100%{transform:none;text-shadow:none}
+}
+#movie{position:fixed;inset:0;z-index:60;background:#000;display:none;overflow:hidden;cursor:pointer;font-family:var(--mincho)}
+#movie.on{display:block}
+#movie.out{opacity:0;transition:opacity .45s}
+#movie .scan{position:absolute;inset:0;pointer-events:none;z-index:9;background:repeating-linear-gradient(0deg,rgba(0,0,0,.35) 0 2px,transparent 2px 4px)}
+#movie .skip{position:absolute;right:16px;bottom:10px;z-index:10;font:12px sans-serif;color:#777}
+.sc{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center}
+.sc.on{display:flex}
+.hex{position:absolute;inset:0;opacity:.55;animation:hexf .5s steps(2) infinite}
+@keyframes hexf{50%{opacity:.2}}
+#sA{background:#100000;animation:alarm .36s steps(2) infinite}
+@keyframes alarm{50%{background:#5a0000}}
+.bar{position:absolute;left:0;right:0;height:12vh;background:repeating-linear-gradient(-45deg,#000 0 24px,#ffb800 24px 48px);background-size:68px 68px;animation:mv .5s linear infinite}
+.bar.top{top:6vh}.bar.bot{bottom:6vh}
+@keyframes mv{to{background-position:68px 0}}
+.wbox{position:relative;text-align:center;padding:3vh 9vw;background:#000c;clip-path:polygon(6% 0,94% 0,100% 50%,94% 100%,6% 100%,0 50%)}
+.w1{font-size:clamp(50px,12vw,190px);font-weight:900;letter-spacing:.08em;color:#ff2a00;text-shadow:0 0 30px #f00}
+.w2{font-size:clamp(28px,5vw,80px);font-weight:900;letter-spacing:.8em;color:#ffb800}
+#sB{background:#000}
+#lines{text-align:center}
+.ln{font-size:clamp(26px,4.6vw,68px);font-weight:900;color:#fff;letter-spacing:.2em;margin:.35em 0;animation:ln .3s}
+@keyframes ln{from{opacity:0;transform:translateX(-30px)}}
+#gauge{position:absolute;bottom:11vh;left:50%;transform:translateX(-50%);width:min(700px,80vw);text-align:center}
+.gl{font-size:20px;color:#ff9b1a;letter-spacing:.5em}
+.gn{font-size:clamp(50px,8vw,100px);font-weight:900;color:#ff9b1a}
+.gb{height:14px;border:2px solid #ff9b1a}
+.gb i{display:block;height:100%;width:0;background:#ff9b1a}
+#sC{background:#000}
+.c1{position:relative;font-size:clamp(70px,16vw,260px);font-weight:900;color:#ff1a00;text-shadow:0 0 40px #f00,0 0 90px #f00;animation:slam .5s}
+.c1.weak{font-size:clamp(40px,8vw,120px);color:#8892aa;text-shadow:none;animation:ln .8s}
+.c2{position:relative;margin-top:2vh;font-size:clamp(20px,3.2vw,48px);letter-spacing:.3em;color:#fff}
+@keyframes slam{0%{transform:scale(5);opacity:0}60%{transform:scale(.95);opacity:1}100%{transform:scale(1)}}
+#sD{background:#000;animation:df .6s}
+@keyframes df{0%{background:#fff}100%{background:#000}}
+#burst{position:absolute;left:0;right:0;top:50%;height:2px;background:var(--c);box-shadow:0 0 30px var(--c);transform:translateY(-50%) scaleX(0);animation:wipe .9s forwards}
+@keyframes wipe{0%{transform:translateY(-50%) scaleX(0);height:2px;opacity:1}40%{transform:translateY(-50%) scaleX(1);height:2px;opacity:1}100%{transform:translateY(-50%) scaleX(1);height:34vh;opacity:.22}}
+.d1{position:relative;font:clamp(16px,2.4vw,32px) var(--mono);letter-spacing:1em;color:#fff;animation:ln .5s .3s backwards}
+.d2{position:relative;font-size:clamp(120px,30vw,420px);line-height:1;font-weight:900;color:#fff;text-shadow:0 0 40px var(--c),0 0 90px var(--c);animation:slam .5s .35s backwards}
+@keyframes bang{0%{transform:scale(.1) rotate(-20deg);opacity:0}60%{transform:scale(1.3) rotate(4deg);opacity:1}100%{transform:scale(1)}}
+#mtag{position:absolute;left:16px;top:10px;z-index:10;font:12px var(--mono);letter-spacing:.3em;color:#888}
+#cvE{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;opacity:.85}
+.eT{position:relative;font:clamp(18px,2.6vw,36px) var(--mono);letter-spacing:.3em;color:#fff;text-align:center;line-height:2;text-shadow:0 0 8px #000,0 0 3px #000}
+#sF{background:#000;align-items:flex-start;justify-content:flex-start;padding:5vh 6vw}
+#log{font:clamp(13px,1.6vw,22px) var(--mono);color:#e8e8e8;line-height:1.5;width:100%;overflow:hidden}
+#log .ok{color:#ff9b1a}
+.fBig{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(50px,11vw,170px);font-weight:900;letter-spacing:.1em;color:#fff;background:#000d;text-shadow:0 0 30px #ff9b1a;opacity:0}
+.fBig.on{opacity:1;animation:slam .4s}
+#sG{background:#050000}
+#cvG{height:88vh;aspect-ratio:1;max-width:96vw}
+.gT{position:absolute;left:5vw;top:6vh;font:clamp(14px,1.8vw,26px) var(--mono);letter-spacing:.3em;color:#ff9b1a;line-height:1.8}
+#sH{background:#000}
+#sH.al{animation:alarm .3s steps(2) infinite}
+.cdn{position:relative;font-size:clamp(160px,40vw,560px);font-weight:900;line-height:1;color:#ff1a00;text-shadow:0 0 50px #f00}
+.cdn.hit{animation:slam .35s}
+.cdt{position:relative;font:clamp(16px,2vw,30px) var(--mono);letter-spacing:.6em;color:#fff}
+#sI{background:#000;color:#fff;animation:inv .5s steps(1) 4}
+@keyframes inv{50%{filter:invert(1)}}
+.ov1{font-size:clamp(50px,11vw,170px);font-weight:900;letter-spacing:.1em}
+.ov1.g{animation:glitch .5s}
+.ov2{font:clamp(14px,2vw,28px) var(--mono);letter-spacing:.5em;margin-top:2vh}
+.mvrow{font:12px var(--mono);color:#aaa;padding:3px 0;letter-spacing:.08em}
+.mvrow span{color:#ff9b1a;float:right}
+.shake{animation:sh .08s infinite}
+@keyframes sh{0%{transform:translate(8px,-6px)}25%{transform:translate(-9px,5px)}50%{transform:translate(6px,8px)}75%{transform:translate(-7px,-8px)}100%{transform:translate(5px,3px)}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="side">
+    <h2>抽選対象</h2>
+    <p class="hint">左: 景品名 / 右: 当たりやすさ(数字が大きいほど出やすい)<br>ランクは出にくさ順で決まります(D〜S)。同じ数字なら下の項目ほど高ランクです。</p>
+    <div id="list"></div>
+    <button class="sub" id="add">＋ 項目追加</button>
+    <button class="sub" id="snd">音: ON</button>
+    <button class="sub" id="fs">全画面</button>
+    <button class="sub" id="mv">ムービー: ON</button>
+    <h2 style="margin-top:20px">演出一覧</h2>
+    <p class="hint">ムービー左上の PATTERN 番号で、高ランク(S/A)の期待度が変わります。★が多いほど期待大。</p>
+    <div id="mvlist"></div>
+    <p class="hint" style="margin-top:12px">Space キーでも開始できます。結果画面はクリックかEscで閉じる。</p>
+  </div>
+  <div id="stage">
+    <div id="head"><div class="sm">LOTTERY SYSTEM</div><h1>誕生日 抽選</h1><div id="stat">STANDBY</div></div>
+    <div id="strip"><div id="track"></div><div id="mk"></div></div>
+    <button id="spin">抽選開始</button>
+  </div>
+</div>
+<div id="dim"></div>
+<div id="flash"></div>
+<div id="movie">
+  <div class="sc" id="sA"><div class="hex" id="hexA"></div><div class="bar top"></div><div class="bar bot"></div><div class="wbox"><div class="w1">WARNING</div><div class="w2">警 報</div></div></div>
+  <div class="sc" id="sB"><div id="lines"></div><div id="gauge"><div class="gl">解析率</div><div class="gn">0%</div><div class="gb"><i></i></div></div></div>
+  <div class="sc" id="sC"><div class="hex" id="hexC"></div><div class="c1"></div><div class="c2"></div></div>
+  <div class="sc" id="sD"><div id="burst"></div><div class="d1">RANK</div><div class="d2"></div></div>
+  <div class="sc" id="sE"><canvas id="cvE" width="320" height="180"></canvas><div class="eT"></div></div>
+  <div class="sc" id="sF"><div id="log"></div><div class="fBig"></div></div>
+  <div class="sc" id="sG"><canvas id="cvG" width="720" height="720"></canvas><div class="gT"></div></div>
+  <div class="sc" id="sH"><div class="hex" id="hexH"></div><div class="cdn"></div><div class="cdt"></div></div>
+  <div class="sc" id="sI"><div class="ov1"></div><div class="ov2"></div></div>
+  <div id="mtag"></div>
+  <div class="scan"></div><div class="skip">クリックでスキップ</div>
+</div>
+<div id="win"><div class="wl">目標 確認</div><div id="wn"></div><div id="wt"></div><small>クリックで閉じる</small></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const STEP = 180, N = 70, WIN = 55;
+const COL = ['#4a6fa5', '#7a5fb5', '#b4408c', '#d4141c', '#ffb000'];
+const RN = ['D', 'C', 'B', 'A', 'S'];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const setStat = s => { $('#stat').textContent = s; };
+
+/* ---------- 項目 ---------- */
+let items;
+try { items = JSON.parse(localStorage.getItem('rt_items')); } catch (e) {}
+if (!Array.isArray(items)) items = [
+  { n: 'ケーキ', w: 1 }, { n: 'ご飯', w: 1 }, { n: 'お菓子', w: 1 },
+  { n: 'ぬいぐるみ', w: 1 }, { n: '謎の箱', w: 1 }, { n: 'ハズレ(笑)', w: 1 }
+];
+const save = () => { try { localStorage.setItem('rt_items', JSON.stringify(items)); } catch (e) {} };
+const active = () => items.filter(i => i.n.trim() && i.w > 0);
+
+function updatePct() {
+  const total = active().reduce((s, i) => s + i.w, 0);
+  document.querySelectorAll('.pct').forEach((el, k) => {
+    const it = items[k];
+    el.textContent = it.n.trim() && it.w > 0 ? (it.w / total * 100).toFixed(0) + '%' : '-';
+  });
+}
+function renderList() {
+  const box = $('#list');
+  box.innerHTML = '';
+  items.forEach((it, k) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = '<input type="text" maxlength="20"><input type="number" min="0" step="0.5"><span class="pct"></span><button class="x">×</button>';
+    const [tn, tw, , bx] = row.children;
+    tn.value = it.n; tw.value = it.w;
+    tn.oninput = () => { it.n = tn.value; save(); updatePct(); rebuild(); };
+    tw.oninput = () => { it.w = parseFloat(tw.value) || 0; save(); updatePct(); rebuild(); };
+    bx.onclick = () => { items.splice(k, 1); save(); renderList(); rebuild(); };
+    box.appendChild(row);
+  });
+  updatePct();
+}
+$('#add').onclick = () => { items.push({ n: '', w: 1 }); save(); renderList(); };
+
+/* 出にくい順に等級(0〜4)を割り当てる */
+function tiers(a) {
+  const n = a.length, t = [];
+  a.map((_, i) => i).sort((x, y) => a[y].w - a[x].w || x - y)
+    .forEach((i, r) => { t[i] = n < 2 ? 0 : Math.round(r / (n - 1) * 4); });
+  return t;
+}
+function pick(a, pow = 1) {
+  const ws = a.map(i => Math.pow(i.w, pow));
+  let r = Math.random() * ws.reduce((s, v) => s + v, 0);
+  for (let i = 0; i < ws.length; i++) { r -= ws[i]; if (r < 0) return i; }
+  return ws.length - 1;
+}
+
+/* ---------- 音 ---------- */
+let ac, mute = false;
+function snd(f, d = .1, type = 'square', v = .05, at = 0, to) {
+  if (mute || !ac) return;
+  const t = ac.currentTime + at, o = ac.createOscillator(), g = ac.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(f, t);
+  if (to) o.frequency.exponentialRampToValueAtTime(to, t + d);
+  g.gain.setValueAtTime(v, t);
+  g.gain.exponentialRampToValueAtTime(.001, t + d);
+  o.connect(g).connect(ac.destination);
+  o.start(t); o.stop(t + d);
+}
+function noise(d = .05, v = .1) {
+  if (mute || !ac) return;
+  const b = ac.createBuffer(1, Math.floor(ac.sampleRate * d), ac.sampleRate), x = b.getChannelData(0);
+  for (let i = 0; i < x.length; i++) x[i] = (Math.random() * 2 - 1) * (1 - i / x.length);
+  const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+  f.type = 'highpass'; f.frequency.value = 1500; g.gain.value = v;
+  s.buffer = b; s.connect(f).connect(g).connect(ac.destination); s.start();
+}
+const cymbal = () => { noise(1.4, .3); snd(60, .7, 'sine', .5); };
+$('#snd').onclick = e => { mute = !mute; e.target.textContent = mute ? '音: OFF' : '音: ON'; };
+$('#fs').onclick = () => document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+
+/* ---------- ストリップ ---------- */
+const tr = $('#track'), sv = $('#strip');
+let x = 0, busy = false, lastIdx = -1;
+
+function mkCard(it, tier) {
+  const d = document.createElement('div');
+  d.className = 'card t' + tier;
+  d.dataset.t = tier;
+  d.innerHTML = `<div class="rar">RANK ${RN[tier]}</div><div class="nm"></div>`;
+  d.querySelector('.nm').textContent = it.n;
+  return d;
+}
+function buildStrip() {
+  const a = active(), t = tiers(a);
+  tr.innerHTML = ''; x = 0; lastIdx = -1;
+  tr.style.transform = 'translate3d(0,0,0)';
+  if (!a.length) return;
+  for (let i = 0; i < N; i++) { const k = pick(a, .6); tr.appendChild(mkCard(a[k], t[k])); }
+}
+function rebuild() { if (!busy) buildStrip(); }
+
+function place() {
+  tr.style.transform = `translate3d(${x}px,0,0)`;
+  const idx = Math.floor((sv.clientWidth / 2 - x) / STEP);
+  if (idx !== lastIdx) {
+    tr.children[lastIdx]?.classList.remove('hit');
+    const c = tr.children[idx];
+    if (c) {
+      c.classList.add('hit');
+      if (busy) snd(700 + +c.dataset.t * 160, .04, 'triangle', .07);
+    }
+    lastIdx = idx;
+  }
+}
+(function idle() {
+  if (!busy && tr.children.length) { x -= .35; if (x < -STEP * 20) x = 0; place(); }
+  requestAnimationFrame(idle);
+})();
+
+renderList(); buildStrip();
+
+/* ---------- 演出 ---------- */
+const app = $('#app');
+function shake(ms) { app.classList.add('shake'); setTimeout(() => app.classList.remove('shake'), ms); }
+function tween(to, ms, ease, cb) {
+  return new Promise(res => {
+    const from = x; let s;
+    (function f(now) {
+      s ??= now;
+      const k = Math.min(1, (now - s) / ms);
+      x = from + (to - from) * ease(k);
+      place(); cb && cb();
+      k < 1 ? requestAnimationFrame(f) : res();
+    })(performance.now());
+  });
+}
+function impact(tier) {
+  snd(55, .9, 'sine', .6);
+  noise(.4, .15 + tier * .04);
+  [880, 1320].slice(0, tier >= 2 ? 2 : 1).forEach((f, i) => snd(f, .6, 'triangle', .07, .05 + i * .12));
+  if (tier >= 3) { cymbal(); snd(120, 1.2, 'sawtooth', .06, 0, 40); }
+}
+function win(name, tier) {
+  const fl = $('#flash');
+  fl.className = ''; void fl.offsetWidth; fl.className = 'on';
+  if (tier >= 3) shake(400 + (tier - 3) * 300);
+  impact(tier);
+  const w = $('#win');
+  w.className = 'show' + (tier >= 3 ? ' alert' : '');
+  w.style.setProperty('--c', COL[tier]);
+  $('#wn').textContent = name;
+  $('#wt').textContent = 'RANK ' + RN[tier];
+  setStat('COMPLETE');
+}
+function closeWin() {
+  $('#win').className = '';
+  busy = false; $('#spin').disabled = false;
+  setStat('STANDBY');
+  buildStrip();
+}
+$('#win').onclick = closeWin;
+
+/* ---------- ムービー ---------- */
+let movieOn = true, skipM = false;
+$('#mv').onclick = e => { movieOn = !movieOn; e.target.textContent = movieOn ? 'ムービー: ON' : 'ムービー: OFF'; };
+$('#movie').onclick = () => { skipM = true; };
+const mwait = async ms => {
+  const end = performance.now() + ms;
+  while (performance.now() < end) { if (skipM) throw 0; await sleep(30); }
+};
+const sc = id => document.querySelectorAll('#movie .sc').forEach(e => e.classList.toggle('on', e.id === id));
+const mshake = ms => { const m = $('#movie'); m.classList.add('shake'); setTimeout(() => m.classList.remove('shake'), ms); };
+function hexFill(el, color, r = 46) {
+  const w = Math.ceil(innerWidth / (r * 1.5)) + 2, h = Math.ceil(innerHeight / (r * 1.732)) + 2;
+  let s = `<svg width="100%" height="100%" style="position:absolute;inset:0"><g stroke="${color}" stroke-width="2">`;
+  for (let i = 0; i < w; i++) for (let j = 0; j < h; j++) {
+    const cx0 = i * r * 1.5, cy0 = j * r * 1.732 + (i % 2 ? r * .866 : 0);
+    let p = '';
+    for (let k = 0; k < 6; k++) { const a = Math.PI / 3 * k; p += (cx0 + r * Math.cos(a)).toFixed(1) + ',' + (cy0 + r * Math.sin(a)).toFixed(1) + ' '; }
+    s += `<polygon points="${p}" fill="${Math.random() < .12 ? color + '66' : 'none'}"/>`;
+  }
+  el.innerHTML = s + '</g></svg>';
+}
+
+/* 演出1: 通信(期待度★) */
+async function mvSignal() {
+  sc('sE');
+  const g = $('#cvE').getContext('2d'), T = $('.eT');
+  let amp = 0, run = true;
+  T.textContent = '';
+  (function f() {
+    if (!run) return;
+    const im = g.createImageData(320, 180), d = im.data;
+    for (let i = 0; i < d.length; i += 4) { const v = Math.random() * 110 * (1 - amp * .8); d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
+    g.putImageData(im, 0, 0);
+    g.strokeStyle = '#ff9b1a'; g.lineWidth = 2; g.beginPath();
+    for (let X = 0; X < 320; X++) {
+      const Y = 90 + Math.sin(X * .12 + performance.now() / 80) * amp * 50 + (Math.random() - .5) * (1 - amp) * 50;
+      X ? g.lineTo(X, Y) : g.moveTo(X, Y);
+    }
+    g.stroke();
+    requestAnimationFrame(f);
+  })();
+  try {
+    noise(.6, .12);
+    await mwait(1300);
+    T.textContent = 'SIGNAL DETECTED';
+    snd(1200, .08, 'square', .05); snd(900, .08, 'square', .05, .1);
+    await mwait(900);
+    for (let p = 0; p < 100; p += 4) {
+      amp = p / 100;
+      T.innerHTML = `受信中 ${p}%<br>${'■'.repeat(Math.floor(p / 10))}`;
+      snd(300 + p * 6, .03, 'sawtooth', .03);
+      await mwait(60);
+    }
+    amp = 1; T.textContent = 'DECODED';
+    snd(1500, .15, 'square', .06); snd(1500, .15, 'square', .06, .2);
+    await mwait(900);
+  } finally { run = false; }
+}
+
+/* 演出2: 起動(期待度★★) */
+async function mvBoot() {
+  sc('sF');
+  const L = $('#log'), B = $('.fBig');
+  L.innerHTML = ''; B.className = 'fBig';
+  const pool = ['電源 供給', '冷却 系統', '回路 接続', '制御 展開', '座標 同期', '認証 処理', '出力 調整', '記憶 領域 確保'];
+  for (let i = 0; i < 26; i++) {
+    const d = document.createElement('div');
+    d.innerHTML = `[0x${(Math.random() * 65535 | 0).toString(16).padStart(4, '0').toUpperCase()}] ${pool[i % pool.length]} ........ <span class="ok">OK</span>`;
+    L.appendChild(d);
+    while (L.children.length > 20) L.removeChild(L.firstChild);
+    snd(1400, .02, 'square', .03);
+    await mwait(85);
+  }
+  B.textContent = 'SYSTEM ONLINE'; B.className = 'fBig on';
+  snd(55, .7, 'sine', .6); noise(.4, .2);
+  await mwait(1300);
+}
+
+/* 演出3: 警報(期待度★★★) */
+async function mvWarn() {
+  hexFill($('#hexA'), '#ff3b00'); hexFill($('#hexC'), '#ff2a00');
+  const L = $('#lines'), gn = $('.gn'), gi = $('.gb i');
+  sc('sA'); mshake(1500);
+  for (let k = 0; k < 5; k++) snd(k % 2 ? 620 : 880, .3, 'square', .07, k * .36);
+  noise(.3, .2);
+  await mwait(1900);
+
+  sc('sB'); L.innerHTML = ''; gn.textContent = '0%'; gi.style.width = '0';
+  for (const s of ['未確認の反応を検知', '座標 固定不能', '対象 接近中…']) {
+    const d = document.createElement('div'); d.className = 'ln'; d.textContent = s; L.appendChild(d);
+    snd(1200, .05, 'square', .05); snd(900, .05, 'square', .05, .08);
+    await mwait(600);
+  }
+  for (let g = 0; g < 100;) {
+    g = Math.min(100, g + Math.random() * 9 + 2);
+    gn.textContent = Math.floor(g) + '%'; gi.style.width = g + '%';
+    snd(400 + g * 8, .03, 'square', .04);
+    await mwait(55);
+  }
+  await mwait(300);
+
+  sc('sC');
+  const c1 = $('.c1'), c2 = $('.c2');
+  c1.className = ''; void c1.offsetWidth; c1.className = 'c1';
+  c1.textContent = '迎撃開始'; c2.textContent = '対象 接近中 ― 総員 備えよ';
+  mshake(1200); snd(55, .6, 'sine', .7); noise(.6, .35); snd(70, .2, 'sine', .5, .5); snd(70, .2, 'sine', .5, .9);
+  await mwait(1800);
+}
+
+/* 演出4: 接近(期待度★★★) */
+async function mvRadar() {
+  sc('sG');
+  const g = $('#cvG').getContext('2d'), T = $('.gT'), S = 360, DUR = 3800;
+  const bearing = Math.random() * 6.283, t0 = performance.now();
+  const decoys = Array.from({ length: 4 }, () => [Math.random() * 6.283, .3 + Math.random() * .6]);
+  let ang = 0, run = true;
+  (function f() {
+    if (!run) return;
+    const dist = Math.pow(Math.max(0, 1 - (performance.now() - t0) / DUR), 1.5);
+    ang += .08;
+    g.clearRect(0, 0, 720, 720);
+    g.strokeStyle = '#ff9b1a66'; g.lineWidth = 2;
+    [90, 180, 270, 340].forEach(r => { g.beginPath(); g.arc(S, S, r, 0, 6.283); g.stroke(); });
+    g.beginPath(); g.moveTo(S, 20); g.lineTo(S, 700); g.moveTo(20, S); g.lineTo(700, S); g.stroke();
+    for (let k = 0; k < 24; k++) {
+      g.strokeStyle = `rgba(255,155,26,${.5 * (1 - k / 24)})`; g.lineWidth = 3;
+      g.beginPath(); g.moveTo(S, S);
+      g.lineTo(S + Math.cos(ang - k * .03) * 340, S + Math.sin(ang - k * .03) * 340); g.stroke();
+    }
+    g.fillStyle = '#ff9b1a99';
+    decoys.forEach(([a, r]) => { g.beginPath(); g.arc(S + Math.cos(a) * r * 340, S + Math.sin(a) * r * 340, 6, 0, 6.283); g.fill(); });
+    g.fillStyle = '#ff1a00'; g.shadowColor = '#f00'; g.shadowBlur = 25;
+    g.beginPath(); g.arc(S + Math.cos(bearing) * dist * 340, S + Math.sin(bearing) * dist * 340, 12 + (1 - dist) * 14, 0, 6.283); g.fill();
+    g.shadowBlur = 0;
+    T.innerHTML = dist > 0 ? `接近中<br>距離 ${Math.round(dist * 3000)} m` : '目標 到達';
+    requestAnimationFrame(f);
+  })();
+  const iv = setInterval(() => snd(1300, .1, 'sine', .08), 450);
+  try {
+    await mwait(DUR);
+    snd(55, .8, 'sine', .7); noise(.5, .3); mshake(500);
+    await mwait(1000);
+  } finally { run = false; clearInterval(iv); }
+}
+
+/* 演出5: 臨界(期待度★★★★) */
+async function mvCrit() {
+  hexFill($('#hexH'), '#ff2a00');
+  const s = $('#sH'), n = $('.cdn'), t = $('.cdt');
+  s.classList.remove('al'); sc('sH');
+  t.textContent = '臨界 まで';
+  for (let i = 5; i >= 0; i--) {
+    n.textContent = i; n.className = 'cdn'; void n.offsetWidth; n.className = 'cdn hit';
+    snd(i ? 220 : 90, .4, 'sine', .6); noise(.2, .15 + (5 - i) * .04);
+    if (i === 3) s.classList.add('al');
+    if (i <= 2) mshake(i ? 300 : 900);
+    await mwait(i ? 750 : 900);
+  }
+  s.classList.remove('al');
+}
+
+/* 演出6: 上書き(期待度★★★★★) */
+async function mvOver() {
+  sc('sI');
+  const a = $('.ov1'), b = $('.ov2');
+  const set = (x, y) => { a.className = 'ov1'; void a.offsetWidth; a.className = 'ov1 g'; a.textContent = x; b.textContent = y; };
+  set('警告', 'UNAUTHORIZED ACCESS');
+  for (let k = 0; k < 4; k++) snd(k % 2 ? 500 : 1000, .2, 'square', .08, k * .25);
+  await mwait(1200);
+  set('権限 変更', 'OVERRIDE .......... 42%');
+  snd(150, 1, 'sawtooth', .07, 0, 1200); noise(.8, .2);
+  await mwait(1200);
+  set('上 書 き', 'SYSTEM OVERRIDE');
+  mshake(1000); snd(50, 1, 'sine', .8); cymbal();
+  await mwait(1300);
+}
+
+/* 演出ごとの出現率(列 = ランク D,C,B,A,S のとき) */
+const MOVIES = [
+  { name: '通信',   stars: 1, w: [40, 25, 10, 3, 0],   run: mvSignal },
+  { name: '起動',   stars: 2, w: [30, 30, 20, 10, 3],  run: mvBoot },
+  { name: '警報',   stars: 3, w: [15, 20, 25, 20, 10], run: mvWarn },
+  { name: '接近',   stars: 3, w: [10, 15, 25, 25, 20], run: mvRadar },
+  { name: '臨界',   stars: 4, w: [4, 8, 18, 32, 37],   run: mvCrit },
+  { name: '上書き', stars: 5, w: [0, 2, 2, 10, 30],    run: mvOver }
+];
+MOVIES.forEach((m, i) => {
+  const d = document.createElement('div');
+  d.className = 'mvrow';
+  d.innerHTML = `PATTERN 0${i + 1} ${m.name}<span>${'★'.repeat(m.stars)}${'☆'.repeat(5 - m.stars)}</span>`;
+  $('#mvlist').appendChild(d);
+});
+function pickMovie(tier) {
+  let r = Math.random() * MOVIES.reduce((s, m) => s + m.w[tier], 0);
+  for (let i = 0; i < MOVIES.length; i++) { r -= MOVIES[i].w[tier]; if (r < 0) return i; }
+  return MOVIES.length - 1;
+}
+
+/* 共通の締め: ランク発表 */
+async function ending(tier) {
+  sc('sD');
+  $('#movie').style.setProperty('--c', COL[tier]);
+  $('.d2').textContent = RN[tier];
+  snd(55, .6, 'sine', .6, .35); snd(200, .8, 'sawtooth', .08, 0, 1800); noise(1, .3);
+  if (tier >= 3) cymbal();
+  mshake(500);
+  await mwait(1700);
+}
+
+async function playMovie(tier) {
+  const m = $('#movie'), i = pickMovie(tier);
+  skipM = false; m.className = 'on';
+  $('#mtag').textContent = 'PATTERN 0' + (i + 1);
+  try { await MOVIES[i].run(); await ending(tier); } catch (e) {}
+  m.classList.add('out'); await sleep(450); m.className = '';
+}
+
+/* ---------- 抽選 ---------- */
+async function spin() {
+  if (busy) return;
+  const a = active();
+  if (a.length < 2) { alert('項目を2つ以上入れてください'); return; }
+  busy = true; $('#spin').disabled = true;
+  ac ??= new AudioContext(); ac.resume();
+  setStat('RUNNING');
+
+  const t = tiers(a), w = pick(a), near = Math.random() < .6;
+  const swap = (i, k) => { tr.replaceChild(mkCard(a[k], t[k]), tr.children[i]); };
+  swap(WIN, w);
+  if (near) {
+    // 止まる直前に、いちばん高等級の景品を隣に置いて「あと1枚」を作る
+    let k = t.lastIndexOf(4);
+    if (k < 0 || k === w) k = pick(a, .6);
+    swap(WIN + 1, k);
+  }
+  lastIdx = -1;
+
+  const vw = sv.clientWidth;
+  const off = near ? 55 + Math.random() * 25 : (Math.random() - .5) * 100;
+  const target = vw / 2 - (WIN * STEP + STEP / 2 + off);
+
+  noise(.7, .1); snd(150, .6, 'sawtooth', .04, 0, 900);
+
+  // 前半: 加速してそのまま高速回転
+  const v = 2.4, ms3 = 6500, D1 = Math.max(0, x - target - v * ms3 / 4);
+  const ease1 = k => k < .12 ? (k * k / .24) / .94 : (k - .06) / .94;
+  if (D1 > 0) await tween(x - D1, D1 / (v * .94), ease1);
+
+  // ムービー
+  if (movieOn) {
+    setStat('ANALYZING');
+    await playMovie(t[w]);
+    noise(.5, .15); snd(150, .5, 'sawtooth', .05, 0, 900);
+    setStat('RUNNING');
+  }
+
+  // 後半: 減速して止まる
+  let tension = false, beat = 0;
+  await tween(target, ms3, k => 1 - Math.pow(1 - k, 4), () => {
+    if (!tension && Math.abs(target - x) < 420) {
+      tension = true;
+      setStat('TARGET LOCK');
+      const r = sv.getBoundingClientRect(), dim = $('#dim');
+      dim.style.setProperty('--px', (r.left + r.width / 2) + 'px');
+      dim.style.setProperty('--py', (r.top + r.height / 2) + 'px');
+      dim.classList.add('on');
+      beat = setInterval(() => snd(70, .2, 'sine', .4), 480);
+    }
+  });
+  clearInterval(beat);
+  $('#dim').classList.remove('on');
+
+  await sleep(600);
+  win(a[w].n, t[w]);
+}
+
+$('#spin').onclick = e => { e.target.blur(); spin(); };
+addEventListener('keydown', e => {
+  if (e.code === 'Escape' && $('#win').classList.contains('show')) closeWin();
+  if (e.code === 'Space' && e.target === document.body) {
+    e.preventDefault();
+    $('#win').classList.contains('show') ? closeWin() : spin();
+  }
+});
+</script>
+</body>
+</html>
